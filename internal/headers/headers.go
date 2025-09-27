@@ -3,6 +3,7 @@ package headers
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -15,6 +16,11 @@ func NewHeaders() Headers {
 }
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
+	validCharacters, err := regexp.Compile("^[A-Za-z0-9!#$%&'*+-.^_`|~]+$")
+	if err != nil {
+		return 0, false, fmt.Errorf("regexp is invalid")
+	}
+
 	endlineIndex := strings.Index(string(data), crfl)
 	if endlineIndex == -1 {
 		return 0, false, nil
@@ -26,8 +32,15 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	trimmedData := strings.Trim(string(data[:endlineIndex]), " ")
 	firstSemi := strings.Index(trimmedData, ":")
-	key := trimmedData[:firstSemi]
+	key := strings.ToLower(trimmedData[:firstSemi])
 	value := strings.Trim(trimmedData[firstSemi+1:], " ")
+
+	fmt.Println(key)
+	fmt.Println(validCharacters.MatchString(key))
+
+	if !validCharacters.MatchString(key) {
+		return 0, false, fmt.Errorf("header key contains invalid characters: %s", key)
+	}
 
 	if strings.Contains(key, " ") {
 		return 0, false, fmt.Errorf("malformed header, invalid whitespace, data: %s, key: %s, value: %s", trimmedData, key, value)
