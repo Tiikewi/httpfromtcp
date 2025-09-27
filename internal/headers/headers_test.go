@@ -49,6 +49,16 @@ func TestHeadersParse(t *testing.T) {
 	assert.Equal(t, 2, n)
 	assert.True(t, done)
 
+	// Test: multipe same header values gets appended
+	headers = map[string]string{"accept": "text/json"}
+	data = []byte("Accept: text/html  \r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "text/json, text/html", headers["accept"])
+	assert.Equal(t, 21, n)
+	assert.False(t, done)
+
 	// Test: Invalid spacing header
 	headers = NewHeaders()
 	data = []byte("       Host : localhost:42069       \r\n\r\n")

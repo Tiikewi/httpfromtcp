@@ -35,9 +35,6 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	key := strings.ToLower(trimmedData[:firstSemi])
 	value := strings.Trim(trimmedData[firstSemi+1:], " ")
 
-	fmt.Println(key)
-	fmt.Println(validCharacters.MatchString(key))
-
 	if !validCharacters.MatchString(key) {
 		return 0, false, fmt.Errorf("header key contains invalid characters: %s", key)
 	}
@@ -46,7 +43,12 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, fmt.Errorf("malformed header, invalid whitespace, data: %s, key: %s, value: %s", trimmedData, key, value)
 	}
 
-	h[key] = value
+	if h[key] != "" {
+		h[key] = h[key] + ", " + value
+	} else {
+		h[key] = value
+	}
+
 	consumedData := len(data[:endlineIndex]) + len(crfl)
 	return consumedData, false, nil
 }
