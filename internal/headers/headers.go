@@ -9,6 +9,10 @@ import (
 
 type Headers map[string]string
 
+func (h Headers) Get(key string) string {
+	return h[strings.ToLower(key)]
+}
+
 const crfl = "\r\n"
 
 func NewHeaders() Headers {
