@@ -1,4 +1,4 @@
-module httpToTcp
+module httpFromTcp
 
 go 1.25.1
 

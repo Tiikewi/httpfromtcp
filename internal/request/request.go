@@ -7,18 +7,22 @@ import (
 	"log"
 	"strings"
 	"unicode"
+
+	"httpFromTcp/internal/headers"
 )
 
 type Request struct {
 	RequestLine RequestLine
 	State       parsesState
+	Headers     headers.Headers
 }
 
 type parsesState string
 
 const (
-	StateInit parsesState = "init"
-	StateDone parsesState = "done"
+	StateInit        parsesState = "init"
+	StateHeadersInit parsesState = "parsing headers"
+	StateDone        parsesState = "done"
 )
 
 type RequestLine struct {
@@ -39,6 +43,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	r := &Request{
 		RequestLine{},
 		StateInit,
+		headers.Headers{},
 	}
 
 	buf := make([]byte, bufferSize)
@@ -78,7 +83,27 @@ func (r *Request) parse(data []byte) (int, error) {
 	if r.done() {
 		return 0, fmt.Errorf("trying to read data in done state")
 	}
-	if r.State == StateInit {
+
+	parsedBytes := 0
+	for r.State != StateDone {
+		n, err := r.parseSingle(data[parsedBytes:])
+		fmt.Printf("parse single with %s", data[parsedBytes:])
+		if err != nil {
+			return 0, err
+		}
+
+		if n == 0 {
+			break
+		}
+		parsedBytes += n
+	}
+
+	return parsedBytes, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.State {
+	case StateInit:
 		reqLine, bytes, err := parseRequestLine(string(data))
 		if err != nil {
 			return bytes, err
@@ -88,14 +113,26 @@ func (r *Request) parse(data []byte) (int, error) {
 			return 0, nil
 		}
 
-		r.State = StateDone
+		r.State = StateHeadersInit
 		r.RequestLine = *reqLine
-		fmt.Printf("method is is: %s", reqLine.Method)
-
 		return bytes, nil
-	}
 
-	return 0, fmt.Errorf("unexpected state")
+	case StateHeadersInit:
+		headerN, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+
+		fmt.Printf("done is: %t", done)
+		if done {
+			r.State = StateDone
+			return 0, nil
+		}
+
+		return headerN, nil
+	default:
+		return 0, fmt.Errorf("unexpected state")
+	}
 }
 
 func parseRequestLine(request string) (*RequestLine, int, error) {
