@@ -92,7 +92,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	fmt.Printf("Parsing... %s, data: %s\n", r.State, data)
 	if r.done() {
 		return 0, fmt.Errorf("trying to read data in done state")
 	}
@@ -137,7 +136,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 
 		if done {
 			r.State = StateBodyInit
-			return 0, nil
+			return headerN, nil
 		}
 
 		return headerN, nil

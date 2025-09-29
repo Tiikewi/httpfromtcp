@@ -17,17 +17,16 @@ const (
 )
 
 func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	fmt.Println("write tatusline")
+	fmt.Printf("WriteStatusLine: %d\n", statusCode)
 	switch statusCode {
 	case Ok:
-		n, err := w.Write([]byte("HTTP/1.1 200 OK\r\n"))
-
-		fmt.Println(n)
+		_, err := w.Write([]byte("HTTP/1.1 200 OK\r\n"))
 		if err != nil {
 			return err
 		}
 	case BadRequest:
-		_, err := w.Write([]byte("HTTP/1.1 400 Bad Request\r\n"))
+		n, err := w.Write([]byte("HTTP/1.1 400 Bad Request\r\n"))
+		fmt.Println("WRITE BAD:", n)
 		if err != nil {
 			return err
 		}

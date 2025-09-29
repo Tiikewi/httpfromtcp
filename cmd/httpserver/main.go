@@ -1,18 +1,39 @@
 package main
 
 import (
+	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"httpFromTcp/internal/request"
 	"httpFromTcp/internal/server"
 )
 
 const port = 42069
 
 func main() {
-	server, err := server.Serve(port)
+	var handlerFn func(w io.Writer, req *request.Request) *server.HandlerError = func(w io.Writer, req *request.Request) *server.HandlerError {
+		if req.RequestLine.RequestTarget == "/yourproblem" {
+			return &server.HandlerError{
+				Status:  400,
+				Message: "Your problem is not my problem\n",
+			}
+		}
+
+		if req.RequestLine.RequestTarget == "/myproblem" {
+			return &server.HandlerError{
+				Status:  500,
+				Message: "Woopsie, my bad\n",
+			}
+		}
+
+		w.Write([]byte("All good, frfr\n"))
+		return nil
+	}
+
+	server, err := server.Serve(port, handlerFn)
 	if err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
