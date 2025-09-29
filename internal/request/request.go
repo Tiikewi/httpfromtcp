@@ -92,6 +92,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
+	fmt.Printf("Parsing... %s, data: %s\n", r.State, data)
 	if r.done() {
 		return 0, fmt.Errorf("trying to read data in done state")
 	}
