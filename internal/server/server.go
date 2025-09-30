@@ -2,9 +2,7 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net"
 	"sync/atomic"
 
@@ -17,7 +15,7 @@ type HandlerError struct {
 	Message string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request)
 
 type Server struct {
 	listener      net.Listener
@@ -41,8 +39,8 @@ func Serve(port int, handler Handler) (*Server, error) {
 	return server, nil
 }
 
-func (he *HandlerError) writeError(w io.Writer) error {
-	err := response.WriteStatusLine(w, response.StatusCode(he.Status))
+func (he *HandlerError) writeError(w *response.Writer) error {
+	err := w.WriteStatusLine(response.StatusCode(he.Status))
 	return err
 }
 
@@ -69,26 +67,18 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 
+	w := &response.Writer{
+		Writer: conn,
+		State:  response.StatusLine,
+	}
+
 	req, err := request.RequestFromReader(conn)
 	if err != nil {
 		panic("Foo faa")
 	}
 
-	var buffer bytes.Buffer
-	handlerError := s.handler(&buffer, req)
-	if handlerError != nil {
-		handlerError.writeError(conn)
-		defaultHeaders := response.GetDefaultHeaders(len(handlerError.Message))
-		response.WriteHeaders(conn, defaultHeaders)
-		conn.Write([]byte("\r\n"))
-		conn.Write([]byte(handlerError.Message))
-	} else {
-		response.WriteStatusLine(conn, response.Ok)
-		defaultHeaders := response.GetDefaultHeaders(buffer.Len())
-		response.WriteHeaders(conn, defaultHeaders)
-		conn.Write([]byte("\r\n"))
-		fmt.Println("BUFFER: ", buffer.String(), buffer.Len())
-		conn.Write(buffer.Bytes())
-		conn.Close()
-	}
+	s.handler(w, req)
+
+	conn.Write([]byte("\r\n"))
+	conn.Close()
 }
