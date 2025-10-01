@@ -96,6 +96,17 @@ func (w *Writer) WriteChunkedBodyDone() (int, error) {
 	return w.Writer.Write([]byte("0\r\n"))
 }
 
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	for k, v := range h {
+		_, err := fmt.Fprintf(w.Writer, "%s: %s\r\n", k, v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func GetDefaultHeaders(contentLen int, contentType string, chunked bool) headers.Headers {
 	headers := headers.NewHeaders()
 	if chunked {

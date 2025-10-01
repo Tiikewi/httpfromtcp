@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -89,15 +91,18 @@ func main() {
 			}
 			delete(hdrs, "content-length")
 			hdrs["transfer-encoding"] = "chunked"
+			hdrs["trailer"] = "X-Content-SHA256,X-Content-Length"
 
 			w.WriteHeaders(hdrs)
 			w.Writer.Write([]byte("\r\n"))
 
 			buf := make([]byte, 1024)
+			fullResp := make([]byte, 60000) // TODO:
 			for {
 				n, err := res.Body.Read(buf)
 				if n > 0 {
 					w.WriteChunkedBody(buf[:n])
+					fullResp = append(fullResp, buf[:n]...)
 				}
 				if err == io.EOF {
 					break
@@ -108,6 +113,21 @@ func main() {
 				}
 			}
 			w.WriteChunkedBodyDone()
+			sha := sha256.Sum256(fullResp)
+			tr := headers.NewHeaders()
+			tr["X-Content-SHA256"] = fmt.Sprintf("%x", sha[:])
+			tr["X-Content-Length"] = fmt.Sprint(len(fullResp))
+			w.WriteTrailers(tr)
+
+		}
+		if s == "/video" {
+			w.WriteStatusLine(200)
+			video, _ := os.ReadFile("../../assets/vim.mp4")
+			defaultHeaders := response.GetDefaultHeaders(len(video), "video/mp4", false)
+			req.Headers = defaultHeaders
+			w.WriteHeaders(req.Headers)
+			w.Writer.Write([]byte("\r\n"))
+			w.WriteBody([]byte(video))
 		} else {
 			w.WriteStatusLine(200)
 			defaultHeaders := response.GetDefaultHeaders(len(successHTML), defaultContentType, false)
