@@ -1,11 +1,15 @@
 package main
 
 import (
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"httpFromTcp/internal/headers"
 	"httpFromTcp/internal/request"
 	"httpFromTcp/internal/response"
 	"httpFromTcp/internal/server"
@@ -49,30 +53,69 @@ func main() {
 	var handlerFn server.Handler = func(w *response.Writer, req *request.Request) {
 		defaultContentType := "text/html"
 
-		if req.RequestLine.RequestTarget == "/yourproblem" {
+		s := req.RequestLine.RequestTarget
+		if s == "/yourproblem" {
 			w.WriteStatusLine(400)
-			defaultHeaders := response.GetDefaultHeaders(len(badRequestHTML), defaultContentType)
+			defaultHeaders := response.GetDefaultHeaders(len(badRequestHTML), defaultContentType, false)
 			req.Headers = defaultHeaders
 			w.WriteHeaders(req.Headers)
 			w.Writer.Write([]byte("\r\n"))
 			w.WriteBody([]byte(badRequestHTML))
 		}
-
-		if req.RequestLine.RequestTarget == "/myproblem" {
+		if s == "/myproblem" {
 			w.WriteStatusLine(500)
-			defaultHeaders := response.GetDefaultHeaders(len(internalErrorHTML), defaultContentType)
+			defaultHeaders := response.GetDefaultHeaders(len(internalErrorHTML), defaultContentType, false)
 			req.Headers = defaultHeaders
 			w.WriteHeaders(req.Headers)
 			w.Writer.Write([]byte("\r\n"))
 			w.WriteBody([]byte(internalErrorHTML))
 		}
+		if strings.HasPrefix(s, "/httpbin/") {
+			// defaultHeaders := response.GetDefaultHeaders(0, defaultContentType, true)
+			// req.Headers = defaultHeaders
 
-		w.WriteStatusLine(200)
-		defaultHeaders := response.GetDefaultHeaders(len(successHTML), defaultContentType)
-		req.Headers = defaultHeaders
-		w.WriteHeaders(req.Headers)
-		w.Writer.Write([]byte("\r\n"))
-		w.WriteBody([]byte(successHTML))
+			url := "https://httpbin.org" + strings.TrimPrefix(s, "/httpbin")
+			res, err := http.Get(url)
+			if err != nil {
+				panic("TODO")
+			}
+			defer res.Body.Close()
+
+			w.WriteStatusLine(response.StatusCode(res.StatusCode))
+
+			hdrs := headers.NewHeaders()
+			for k, v := range res.Header {
+				hdrs[strings.ToLower(k)] = strings.Join(v, ",")
+			}
+			delete(hdrs, "content-length")
+			hdrs["transfer-encoding"] = "chunked"
+
+			w.WriteHeaders(hdrs)
+			w.Writer.Write([]byte("\r\n"))
+
+			buf := make([]byte, 1024)
+			for {
+				n, err := res.Body.Read(buf)
+				if n > 0 {
+					w.WriteChunkedBody(buf[:n])
+				}
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					// handle error (and likely break)
+					break
+				}
+			}
+			w.WriteChunkedBodyDone()
+		} else {
+			w.WriteStatusLine(200)
+			defaultHeaders := response.GetDefaultHeaders(len(successHTML), defaultContentType, false)
+			req.Headers = defaultHeaders
+			w.WriteHeaders(req.Headers)
+			w.Writer.Write([]byte("\r\n"))
+			w.WriteBody([]byte(successHTML))
+		}
 	}
 
 	server, err := server.Serve(port, handlerFn)

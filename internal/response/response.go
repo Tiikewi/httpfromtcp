@@ -14,6 +14,7 @@ const (
 	Ok            StatusCode = 200
 	BadRequest    StatusCode = 400
 	InternalError StatusCode = 500
+	Unavailable   StatusCode = 503
 )
 
 type WriterStatus string
@@ -50,6 +51,12 @@ func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
 		if err != nil {
 			return err
 		}
+
+	case Unavailable:
+		_, err := w.Writer.Write([]byte("HTTP/1.1 503 Service Temporarily Unavailable\r\n"))
+		if err != nil {
+			return err
+		}
 	}
 
 	w.State = Headers
@@ -80,9 +87,22 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	return w.Writer.Write(p)
 }
 
-func GetDefaultHeaders(contentLen int, contentType string) headers.Headers {
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	hexSize := fmt.Sprintf("%x", len(p))
+	return fmt.Fprintf(w.Writer, "%s\r\n%s\r\n", hexSize, p)
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	return w.Writer.Write([]byte("0\r\n"))
+}
+
+func GetDefaultHeaders(contentLen int, contentType string, chunked bool) headers.Headers {
 	headers := headers.NewHeaders()
-	headers["Content-Length"] = fmt.Sprint(contentLen)
+	if chunked {
+		headers["Transfer-Encoding"] = "chunked"
+	} else {
+		headers["Content-Length"] = fmt.Sprint(contentLen)
+	}
 	headers["Connection"] = "close"
 	headers["Content-Type"] = contentType
 
